@@ -1,4 +1,4 @@
-# 🚁 Depth-Vision-UAV-Autopilot
+# Depth-Vision-UAV-Autopilot
 
 **基於深度視覺的無人機自動避障與路徑規劃系統**
 *(Autonomous UAV obstacle avoidance and path planning based on depth vision)*
