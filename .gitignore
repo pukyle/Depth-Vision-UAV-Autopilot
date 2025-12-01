@@ -1,0 +1,14 @@
+# Python 虛擬環境
+.venv/
+venv/
+env/
+
+# Python 快取檔
+__pycache__/
+*.py[cod]
+
+# VS Code 設定檔 (看個人需求，通常不傳)
+.vscode/
+
+# 其他系統檔
+.DS_Store
