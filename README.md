@@ -10,7 +10,7 @@
 ## ⚡ 開發日誌 (Development log)
 * 2025/12/2: https://www.notion.so/2025-12-2-AirSim-2bdacd6c1d5380a8ae18f24a1d8d7ea4?source=copy_link
 * 2025/12/1: https://www.notion.so/2025-12-1-AirSim-2bcacd6c1d5380b992d4daf31d6f74f0?source=copy_link
-目前我們成功解決了 AirSim Python API 在「同時控制飛行」與「獲取高解析度深度圖」時會發生的 **RPC 阻塞與卡死問題**。
+* 目前我們成功解決了 AirSim Python API 在「同時控制飛行」與「獲取高解析度深度圖」時會發生的 **RPC 阻塞與卡死問題**。
 
 **已實現功能：**
 * **雙客戶端架構 (Dual-Client)**：分離「飛行控制」與「影像接收」通道，確保傳輸順暢。
