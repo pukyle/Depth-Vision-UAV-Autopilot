@@ -76,20 +76,22 @@ python tests/test_perception.py
 ## 📂 專案結構 (Project Structure)
 ```Plaintext
 Depth-Vision-UAV-Autopilot/
-├── modules/                 # 核心功能模組 (開發中)
-│   ├── perception.py        # 感知：處理深度圖、點雲轉換
-│   ├── drone_control.py     # 控制：封裝 AirSim API
-│   ├── global_planner.py    # 規劃：RRT/A* 演算法
-│   └── local_planner.py     # 避障：DWA/VO 演算法
-├── tests/                   # 測試腳本
-│   └── test_perception.py   # ✅ 目前的主要 Demo (雙 Client 測試)
-├── utils/                   # 工具函式
-│   └── visualization.py     # 影像視覺化處理
-├── output/                  # 執行結果輸出 (圖片、pfm 檔)
-└── README.md                # 專案說明文件
+├── modules/                       # 核心功能模組 (開發中)
+│   ├── perception.py              # 感知：處理深度圖、點雲轉換
+│   ├── drone_control.py           # 控制：封裝 AirSim API
+│   ├── global_planner.py          # 規劃：RRT/A* 演算法
+│   └── local_planner.py           # 避障：DWA/VO 演算法
+├── tests/                         # 測試腳本
+│   └── test_perception.py         # ✅ 目前的主要 Demo (雙 Client 測試)
+│   └── test_perception_control.py # ✅ 目前的主要 Demo (加上控制模組)
+├── utils/                         # 工具函式
+│   └── visualization.py           # 影像視覺化處理
+│   └── math_utils.py              # 用於數學運算
+├── output/                        # 執行結果輸出 (圖片、pfm 檔)
+└── README.md                      # 專案說明文件
 ```
 ## 💡 關鍵技術筆記 (Technical Notes)
-為了讓隊友理解為什麼 test_perception.py 能跑，請注意以下機制：
+為了能快速理解為什麼 test_perception.py 能跑，請注意以下機制：
 
 ### Dual-Client Strategy：
 
