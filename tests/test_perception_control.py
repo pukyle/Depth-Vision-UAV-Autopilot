@@ -10,7 +10,7 @@ if not hasattr(airsim.ImageType, 'DepthPlanar'):
 
 # --- 全域變數 ---
 latest_depth_img = None
-latest_rgb_img = None
+# latest_rgb_img 已移除
 img_lock = threading.Lock()
 keep_running = True
 
@@ -28,7 +28,7 @@ print("調整相機位置...")
 camera_pose = airsim.Pose(airsim.Vector3r(0.5, 0, 0), airsim.to_quaternion(0, 0, 0))
 client_cam.simSetCameraPose("0", camera_pose)
 
-print(">>> 系統就緒 (指令監控版) <<<")
+print(">>> 系統就緒 (深度圖監控版) <<<")
 print("------------------------------------------------")
 print("  [T] 起飛      |  [Space] 降落")
 print("  [W] 前進      |  [S] 後退")
@@ -43,29 +43,29 @@ z_speed = 2.0
 yaw_rate = 30.0
 cmd_duration = 0.1 
 
-# --- 背景抓圖 ---
+# --- 背景抓圖 (僅深度圖) ---
 def image_updater_thread():
-    global latest_depth_img, latest_rgb_img, keep_running
+    global latest_depth_img, keep_running
     while keep_running:
         try:
+            # 修改：只請求 DepthPlanar，移除 Scene (RGB)
             requests = [
-                airsim.ImageRequest("0", airsim.ImageType.DepthPlanar, True),
-                airsim.ImageRequest("0", airsim.ImageType.Scene, False, True)
+                airsim.ImageRequest("0", airsim.ImageType.DepthPlanar, True)
             ]
             responses = client_cam.simGetImages(requests)
+            
             if responses:
+                # 處理深度圖 (現在它是 responses[0])
                 img_depth = np.array(responses[0].image_data_float, dtype=np.float32)
                 img_depth = img_depth.reshape(responses[0].height, responses[0].width)
                 
-                img_rgb_1d = np.frombuffer(responses[1].image_data_uint8, dtype=np.uint8)
-                img_rgb_decoded = cv2.imdecode(img_rgb_1d, cv2.IMREAD_UNCHANGED)
-
                 with img_lock:
                     latest_depth_img = img_depth
-                    if img_rgb_decoded is not None:
-                        latest_rgb_img = img_rgb_decoded
+                    
             time.sleep(0.002) # 極速抓圖
-        except:
+        except Exception as e:
+            # 加入簡單的錯誤印出，方便除錯 (可選)
+            # print(f"Image error: {e}")
             pass
 
 t = threading.Thread(target=image_updater_thread)
@@ -79,15 +79,17 @@ try:
     while True:
         with img_lock:
             curr_depth = latest_depth_img.copy() if latest_depth_img is not None else None
-            curr_rgb = latest_rgb_img.copy() if latest_rgb_img is not None else None
+            # curr_rgb 相關邏輯已移除
 
         # 顯示倍率
         display_scale = 4
 
         if curr_depth is not None:
             max_depth = 15.0
+            # 數值限制與正規化
             img_depth_display = np.clip(curr_depth, 0, max_depth) 
             img_depth_display = (img_depth_display / max_depth * 255.0).astype(np.uint8)
+            # 上色 (Heatmap)
             img_depth_color = cv2.applyColorMap(img_depth_display, cv2.COLORMAP_JET)
             
             h, w = img_depth_color.shape[:2]
@@ -95,11 +97,7 @@ try:
             cv2.putText(img_depth_resized, f"Depth ({w}x{h})", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255,255,255), 2)
             cv2.imshow("Depth Monitor", img_depth_resized)
 
-        if curr_rgb is not None:
-            h, w = curr_rgb.shape[:2]
-            img_rgb_resized = cv2.resize(curr_rgb, (w * display_scale, h * display_scale), interpolation=cv2.INTER_LINEAR)
-            cv2.putText(img_rgb_resized, f"RGB ({w}x{h})", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
-            cv2.imshow("RGB View", img_rgb_resized)
+        # 移除 RGB 顯示視窗邏輯
 
         # 控制邏輯
         key = cv2.waitKey(10) & 0xFF 
@@ -112,7 +110,7 @@ try:
                 print(f"[指令] 起飛 (Takeoff)")
                 client_fly.takeoffAsync()
                 is_flying = True
-        elif key == 32: 
+        elif key == 32: # Space
             print(f"[指令] 降落 (Land)")
             client_fly.landAsync()
             is_flying = False
@@ -148,9 +146,7 @@ try:
 
             if vx == 0 and vy == 0 and vz == 0 and yaw == 0:
                 client_fly.hoverAsync()
-                # 懸停時不打印，保持畫面乾淨
             else:
-                # 有動作時才打印
                 print(f"[指令] {action_name}")
                 client_fly.moveByVelocityBodyFrameAsync(vx, vy, vz, cmd_duration, 
                     airsim.DrivetrainType.MaxDegreeOfFreedom, 
