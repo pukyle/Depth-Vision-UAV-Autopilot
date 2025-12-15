@@ -16,6 +16,7 @@
     * 實作碰撞自動脫困 (後退+爬升+重規劃)。
     * 實作原路折返 (Return to Home) 功能。
     * 解決 AirSim 多執行緒 IOLoop 衝突 (Dual-Client 架構)。
+* **2025/12/04**: [Notion - AirSim Dji Tello](https://www.notion.so/2025-12-4-AirSim-DJI-Tello-2bfacd6c1d5380928ebbf15b435509a0?source=copy_link)
 * **2025/12/02**: [Notion - AirSim Setup & Tests](https://www.notion.so/2025-12-2-AirSim-2bdacd6c1d5380a8ae18f24a1d8d7ea4?source=copy_link)
 * **2025/12/01**: [Notion - Project Initiation](https://www.notion.so/2025-12-1-AirSim-2bcacd6c1d5380b992d4daf31d6f74f0?source=copy_link)
 
