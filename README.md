@@ -7,7 +7,7 @@
 
 ## About the Project
 
-This project extends the original **Monocular-SLAM-Drone** framework by integrating an **Informed-RRT* (Rapidly-exploring Random Tree*)** path planner, replacing the original A* algorithm.
+This project extends the original **Monocular-SLAM-Drone** framework by integrating an **Informed-RRT*  **(Rapidly-exploring Random Tree*)** path planner, replacing the original A* algorithm.
 
 While the original framework provides excellent real-time monocular depth estimation and 3D voxel occupancy grid generation, this fork focuses on optimizing path planning efficiency in complex, high-dimensional 3D environments.
 
