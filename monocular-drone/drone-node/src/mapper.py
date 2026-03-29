@@ -4,6 +4,7 @@ import time
 import random
 
 from a_star import a_star_3d, a_star_setup
+from hybrid_planner import hybrid_plan_3d
 from utils import bresenham3d_raycast, clamp, quaternion_from_two_vectors
 import nav_config as cfg
 
@@ -288,10 +289,8 @@ class VoxArray:
 
     def plan(self, ch_pts):
         self.start = self.pos
-        if cfg.use_a_star:
-            self.plan_a_star(ch_pts)
-        else:
-            raise Exception("Not implemented")
+        # Route all planning requests to the generic wrapper
+        self.plan_global_path(ch_pts)
 
     def __is_not_on_path_soft(self, tolerance: float) -> bool:
         # return True
@@ -374,14 +373,21 @@ class VoxArray:
 
         self.last_path_idx = min_idx
 
-    def plan_a_star(self, ch_pts):
+    def plan_global_path(self, ch_pts):
+        """
+        Generic path planning interface. 
+        Algorithm selection is handled inside hybrid_plan_3d.
+        """
         if not self.do_need_new_plan(ch_pts):
             self.walk_path()
         else:
             print(f"new plan {self.start} => {self.goal}")
 
             self.replan_cnt += 1
-            self.plan_path, self.plan_unf = a_star_3d(self.vox, self.pos, self.goal)
+            
+            # Use the hybrid router instead of calling a_star_3d directly
+            self.plan_path, self.plan_unf = hybrid_plan_3d(self.vox, self.pos, self.goal)
+            
             self.fat_path = make_fat_path(self.plan_path)
             self.updated_start_or_goal = False
             print(f"found path={self.plan_path}")

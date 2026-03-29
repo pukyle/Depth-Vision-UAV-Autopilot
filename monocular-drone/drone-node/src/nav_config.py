@@ -57,6 +57,7 @@ goal_off_vox = ()
 
 # Use A* path finding algorithm 
 use_a_star = True
+planner_type = "a_star"
 
 # Maximum allowed A* iterations
 max_a_star_iters = 500
@@ -158,6 +159,7 @@ globals_dict = {
 
 def parse_arguments():
     global map_depth, map_width, map_heigth, occup_unkn, occup_min, occup_max
+    global planner_type
     global occup_thr, ray_miss_incr, ray_hit_incr, map_resolution
     global use_rgb_imaging, dimg_stride
     global dimg_min_depth, dimg_max_depth, goal_off, goal_off_vox, use_a_star
@@ -172,6 +174,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Simulation configuration options.")
 
     # Mapping options
+    parser.add_argument('--planner_type', type=str, default=planner_type, choices=['a_star', 'rrt_star'], help="Select path planning algorithm.")
     parser.add_argument('--map_depth', type=int, default=map_depth, help="Map depth.")
     parser.add_argument('--map_width', type=int, default=map_width, help="Map width.")
     parser.add_argument('--map_heigth', type=int, default=map_heigth, help="Map height.")
