@@ -1,4 +1,3 @@
-
 import argparse
 
 #############
@@ -187,7 +186,8 @@ def parse_arguments():
     parser.add_argument('--map_resolution', type=float, default=map_resolution, help="Mapping resolution.")
 
     # Data processing options
-    parser.add_argument('--use_rgb_imaging', action='store_true', default=use_rgb_imaging, help="Enable RGB imaging.")
+    parser.add_argument('--use_rgb_imaging', action='store_true', dest='use_rgb_imaging', default=use_rgb_imaging, help="Use monocular depth estimation (Depth Anything V2).")
+    parser.add_argument('--use_airsim_depth', action='store_false', dest='use_rgb_imaging', help="Use AirSim ground-truth depth images instead of depth estimation.")
     parser.add_argument('--dimg_stride', type=int, default=dimg_stride, help="Depth image downsampling stride.")
     parser.add_argument('--dimg_min_depth', type=int, default=dimg_min_depth, help="Minimum depth.")
     parser.add_argument('--dimg_max_depth', type=int, default=dimg_max_depth, help="Maximum depth.")

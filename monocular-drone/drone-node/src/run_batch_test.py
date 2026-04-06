@@ -2,22 +2,18 @@ import subprocess
 import os
 import time
 import math
+import sys
 
 """
 Batch test runner aligned with paper (Gaigalas et al., Drones 2025, 9, 236).
 
-Paper's experimental setup (Section 4.2.1):
-  - 3 environments × 3 scenarios × 3 voxel sizes × 10 trials = 810 flights total
-  - Voxel sizes: 0.5, 1.0, 2.0
-  - Speed: 2 m/s
-  - Max A* iterations: 200
-  - Collision watchdog: 20 consecutive collision steps → quit
-  - No-path watchdog: 200 consecutive failures → quit (from paper's path planner limit)
-  - Goal reached threshold: 5 m
-  - Map size: 1800 × 1800 × 100 (at V=0.5; scaled proportionally for other V)
+Features:
+  - Run EVERYTHING mode: A* + RRT* x all scenarios x all voxels, then auto-analyze
+  - Depth source selection: monocular estimation vs AirSim ground truth
+  - Overwrite option: re-run and overwrite existing trial JSONs
+  - Paper-aligned parameters for fair comparison
 """
 
-# --- Paper Table 2: Start and end coordinates ---
 SCENARIOS = {
     "AirSimNH": {
         1: {"goal": [-130, -115, 3], "distance": 173.59},
@@ -31,176 +27,327 @@ SCENARIOS = {
     },
 }
 
-# --- Paper parameters ---
-VOXEL_SIZES = [0.5, 1.0, 2.0]
-TRIALS_PER_COMBO = 10       # Paper: 10 flights per (scenario, voxel_size) pair
-SPEED = 2                   # Paper: 2 m/s
-MAX_A_STAR_ITERS = 200      # Paper: max 200 iterations
-COLLISION_WATCHDOG = 20     # Paper: 20 consecutive collision steps → quit
-NO_PATH_WATCHDOG = 200      # Paper: 200 consecutive no-path failures → quit
-GOAL_ERR = 5                # Paper: 5 m threshold for "reached"
-TIMEOUT_PER_TRIAL = 600     # 10 minutes timeout per trial
+ALL_PLANNERS = ["a_star", "rrt_star"]
+ALL_VOXELS = [0.5, 1.0, 2.0]
+ALL_SCENARIOS = [1, 2, 3]
+TRIALS_PER_COMBO = 10
+SPEED = 2
+MAX_A_STAR_ITERS = 200
+COLLISION_WATCHDOG = 20
+NO_PATH_WATCHDOG = 50          # Paper default (stuck detector, not path failure)
+GOAL_ERR = 5
+TIMEOUT_PER_TRIAL = 600
 
-# Map coverage: paper uses 1800×1800×100 at V=0.5
-# At V=0.5, 1800 voxels × 0.5 = 900m coverage
-# We scale map_size = int(900 / voxel_size) to keep same physical coverage
-MAP_COVERAGE_METERS = 900   # Physical coverage in meters
-MAP_HEIGHT = 100            # Z dimension stays fixed
+# Paper Section 3.1: fixed map 1800x1800x100, fixed resolution 2
+# Voxel size V is map_resolution. Map dimensions do NOT change per V.
+MAP_WIDTH = 1800
+MAP_DEPTH = 1800
+MAP_HEIGHT = 100
+DEFAULT_RESOLUTION = 2         # Paper default, used when voxel_size not overridden
 
 MAPPER_SCRIPT = "/catkin_ws/src/drone-node/src/mapper_nav_ros.py"
+ANALYZE_SCRIPT = "/catkin_ws/src/drone-node/src/analyze_metrics.py"
 BASE_OUTPUT_DIR = "/catkin_ws/src/results"
 
 
-def compute_map_size(voxel_size):
-    """Compute map dimensions to maintain consistent physical coverage."""
-    xy_size = int(math.ceil(MAP_COVERAGE_METERS / voxel_size))
-    return xy_size, xy_size, MAP_HEIGHT
-
-
-def build_command(planner_type, goal, voxel_size, logfile):
-    """Build the subprocess command with all paper-aligned parameters."""
-    map_w, map_d, map_h = compute_map_size(voxel_size)
-
+def build_command(planner_type, goal, voxel_size, logfile, use_airsim_depth):
     cmd = [
         "python3", MAPPER_SCRIPT,
         "--planner_type", planner_type,
         "--goal_off", str(goal[0]), str(goal[1]), str(goal[2]),
         "--exit_on_goal",
         "--logfile", logfile,
-        # Paper parameters
         "--speed", str(SPEED),
         "--map_resolution", str(voxel_size),
-        "--map_depth", str(map_d),
-        "--map_width", str(map_w),
-        "--map_heigth", str(map_h),
+        "--map_depth", str(MAP_DEPTH),
+        "--map_width", str(MAP_WIDTH),
+        "--map_heigth", str(MAP_HEIGHT),
         "--max_a_star_iters", str(MAX_A_STAR_ITERS),
         "--collision_watchdog_cnt", str(COLLISION_WATCHDOG),
         "--no_path_watchdog_cnt", str(NO_PATH_WATCHDOG),
         "--goal_err", str(GOAL_ERR),
     ]
+    if use_airsim_depth:
+        cmd.append("--use_airsim_depth")
+    else:
+        cmd.append("--use_rgb_imaging")
     return cmd
 
 
-def run_batch():
-    print("=" * 50)
-    print("  Drone Batch Test (Paper-Aligned)")
-    print("=" * 50)
+def prompt_choice(prompt, options):
+    while True:
+        print(prompt)
+        for i, (label, _) in enumerate(options, 1):
+            print(f"  {i}. {label}")
+        choice = input(f"Enter choice (1-{len(options)}): ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(options):
+            return options[int(choice) - 1][1]
 
-    # --- 1. Environment Selection ---
-    env_choice = ""
-    while env_choice not in ["1", "2"]:
-        print("\nSelect Environment:")
-        print("  1. Blocks")
-        print("  2. AirSimNH")
-        env_choice = input("Enter your choice (1 or 2): ").strip()
-    ENV = "Blocks" if env_choice == "1" else "AirSimNH"
 
-    # --- 2. Planner Selection ---
-    planner_choice = ""
-    while planner_choice not in ["1", "2"]:
-        print("\nSelect Planner Type:")
-        print("  1. A*")
-        print("  2. Informed-RRT*")
-        planner_choice = input("Enter your choice (1 or 2): ").strip()
-    PLANNER_TYPE = "a_star" if planner_choice == "1" else "rrt_star"
-
-    # --- 3. Scenario Selection ---
-    scenario_choice = ""
-    while scenario_choice not in ["1", "2", "3", "4"]:
-        print("\nSelect Scenario:")
-        print("  1. Scenario 1")
-        print("  2. Scenario 2")
-        print("  3. Scenario 3")
-        print("  4. Run ALL Scenarios (1, 2, and 3)")
-        scenario_choice = input("Enter your choice (1/2/3/4): ").strip()
-
-    scenarios_to_run = [1, 2, 3] if scenario_choice == "4" else [int(scenario_choice)]
-
-    # --- 4. Voxel Size Selection ---
-    voxel_choice = ""
-    while voxel_choice not in ["1", "2", "3", "4"]:
-        print("\nSelect Voxel Size:")
-        print("  1. V = 0.5")
-        print("  2. V = 1.0")
-        print("  3. V = 2.0")
-        print("  4. Run ALL Voxel Sizes (0.5, 1.0, 2.0)")
-        voxel_choice = input("Enter your choice (1/2/3/4): ").strip()
-
-    if voxel_choice == "4":
-        voxels_to_run = VOXEL_SIZES
-    else:
-        voxels_to_run = [VOXEL_SIZES[int(voxel_choice) - 1]]
-
-    # --- Summary ---
-    total_runs = len(scenarios_to_run) * len(voxels_to_run) * TRIALS_PER_COMBO
-    print(f"\n{'=' * 50}")
-    print(f"  Environment:    {ENV}")
-    print(f"  Planner:        {PLANNER_TYPE}")
-    print(f"  Scenarios:      {scenarios_to_run}")
-    print(f"  Voxel Sizes:    {voxels_to_run}")
-    print(f"  Trials/combo:   {TRIALS_PER_COMBO}")
-    print(f"  Total runs:     {total_runs}")
-    print(f"  Speed:          {SPEED} m/s")
-    print(f"  Max A* iters:   {MAX_A_STAR_ITERS}")
-    print(f"  Collision stop: {COLLISION_WATCHDOG} steps")
-    print(f"  Goal threshold: {GOAL_ERR} m")
-    print(f"{'=' * 50}\n")
-
-    confirm = input("Proceed? (y/n): ").strip().lower()
-    if confirm != "y":
-        print("Aborted.")
-        return
-
-    # --- Execution ---
+def run_trials(env, planner, depth_label, use_airsim_depth,
+               scenarios, voxels, overwrite):
+    """Run a set of trials for one planner. Returns number of runs executed."""
     run_count = 0
-    for scenario in scenarios_to_run:
-        goal_info = SCENARIOS[ENV][scenario]
-        goal = goal_info["goal"]
+    total = len(scenarios) * len(voxels) * TRIALS_PER_COMBO
 
-        for voxel_size in voxels_to_run:
-            map_w, map_d, _ = compute_map_size(voxel_size)
+    for scenario in scenarios:
+        goal = SCENARIOS[env][scenario]["goal"]
 
-            # Output directory: results/{ENV}/{PLANNER}/S{n}_V{v}/
+        for voxel_size in voxels:
             output_dir = os.path.join(
-                BASE_OUTPUT_DIR, ENV, PLANNER_TYPE,
+                BASE_OUTPUT_DIR, env, f"{planner}_{depth_label}",
                 f"S{scenario}_V{voxel_size}"
             )
             os.makedirs(output_dir, exist_ok=True)
 
-            print(f"\n>>> Scenario {scenario} | V={voxel_size} | "
-                  f"Goal={goal} | Map={map_w}x{map_d} | "
-                  f"Dir: {output_dir}")
+            print(f"\n>>> [{planner}] S{scenario} V={voxel_size} | "
+                  f"Goal={goal} | Map={MAP_WIDTH}x{MAP_DEPTH}")
 
             for trial in range(1, TRIALS_PER_COMBO + 1):
                 run_count += 1
                 logfile = os.path.join(output_dir, f"trial_{trial:02d}.json")
 
-                # Skip if already completed
-                if os.path.exists(logfile):
-                    print(f"  [{run_count}/{total_runs}] Trial {trial} "
-                          f"already exists, skipping.")
+                if os.path.exists(logfile) and not overwrite:
+                    print(f"  [{run_count}/{total}] Trial {trial} exists, skipping.")
                     continue
 
-                cmd = build_command(PLANNER_TYPE, goal, voxel_size, logfile)
+                cmd = build_command(planner, goal, voxel_size, logfile,
+                                    use_airsim_depth)
 
-                print(f"  [{run_count}/{total_runs}] S{scenario} V{voxel_size} "
+                print(f"  [{run_count}/{total}] S{scenario} V{voxel_size} "
                       f"Trial {trial}/{TRIALS_PER_COMBO}...")
 
                 try:
                     subprocess.run(cmd, timeout=TIMEOUT_PER_TRIAL)
                     print(f"  [OK] Trial {trial} finished.")
                 except subprocess.TimeoutExpired:
-                    print(f"  [TIMEOUT] Trial {trial} exceeded {TIMEOUT_PER_TRIAL}s.")
+                    print(f"  [TIMEOUT] Trial {trial} > {TIMEOUT_PER_TRIAL}s.")
                 except Exception as e:
                     print(f"  [ERROR] Trial {trial}: {e}")
 
-                # Buffer for AirSim reset
                 time.sleep(3)
 
-    print(f"\n{'=' * 50}")
-    print(f"  All {total_runs} trials completed!")
-    print(f"  Results in: {BASE_OUTPUT_DIR}/{ENV}/{PLANNER_TYPE}/")
-    print(f"{'=' * 50}")
+    return run_count
+
+
+def run_analysis(env):
+    """Run analyze_metrics.py and export CSV."""
+    csv_path = os.path.join(BASE_OUTPUT_DIR, env, "results_summary.csv")
+    print(f"\n{'=' * 60}")
+    print(f"  Running analysis for {env}...")
+    print(f"{'=' * 60}")
+
+    analyze_cmd = [
+        "python3", ANALYZE_SCRIPT,
+        "--dir", BASE_OUTPUT_DIR,
+        "--csv", csv_path,
+    ]
+
+    try:
+        subprocess.run(analyze_cmd, timeout=120)
+        print(f"\n  Analysis complete! CSV saved to: {csv_path}")
+    except Exception as e:
+        print(f"\n  [ERROR] Analysis failed: {e}")
+        print(f"  You can run manually: python3 {ANALYZE_SCRIPT} --dir {BASE_OUTPUT_DIR}")
+
+
+def run_batch():
+    print("=" * 60)
+    print("  Drone Batch Test (Paper-Aligned)")
+    print("  github.com/pukyle/Depth-Vision-UAV-Autopilot")
+    print("=" * 60)
+
+    # 1. Environment
+    ENV = prompt_choice("\nSelect Environment:", [
+        ("Blocks", "Blocks"),
+        ("AirSimNH", "AirSimNH"),
+    ])
+
+    # 2. Mode selection
+    MODE = prompt_choice("\nSelect Mode:", [
+        ("Custom (pick planner/scenario/voxel)", "custom"),
+        ("Run EVERYTHING - single depth source (A* + RRT*, all scenarios, all voxels)", "everything"),
+        ("Run FULL EXPERIMENT - BOTH depth sources (AirSim + estimated, then analyze)", "full"),
+    ])
+
+    # 3. Depth source (skip for full mode — it runs both)
+    if MODE == "full":
+        USE_AIRSIM_DEPTH = None  # placeholder, will run both
+        depth_label = "both"
+    else:
+        USE_AIRSIM_DEPTH = prompt_choice("\nSelect Depth Source:", [
+            ("Monocular depth estimation (Depth Anything V2)", False),
+            ("AirSim ground-truth depth (no GPU cost)", True),
+        ])
+        depth_label = "airsim_depth" if USE_AIRSIM_DEPTH else "estimated_depth"
+
+    # 4. Overwrite
+    OVERWRITE = prompt_choice("\nExisting trial files:", [
+        ("Skip existing (resume interrupted batch)", False),
+        ("Overwrite all (re-run from scratch)", True),
+    ])
+
+    if MODE == "full":
+        # ══════════════════════════════════════
+        #  FULL EXPERIMENT: both depth sources
+        # ══════════════════════════════════════
+        planners = ALL_PLANNERS
+        scenarios = ALL_SCENARIOS
+        voxels = ALL_VOXELS
+        depth_configs = [
+            ("airsim_depth", True),
+            ("estimated_depth", False),
+        ]
+        total_all = len(planners) * len(scenarios) * len(voxels) * TRIALS_PER_COMBO * len(depth_configs)
+
+        print(f"\n{'=' * 60}")
+        print(f"  === FULL EXPERIMENT MODE ===")
+        print(f"  Environment:    {ENV}")
+        print(f"  Planners:       {planners}")
+        print(f"  Depth sources:  AirSim ground-truth -> Depth estimation")
+        print(f"  Scenarios:      {scenarios}")
+        print(f"  Voxel Sizes:    {voxels}")
+        print(f"  Trials/combo:   {TRIALS_PER_COMBO}")
+        print(f"  Total runs:     {total_all}")
+        print(f"  Overwrite:      {OVERWRITE}")
+        print(f"  Map:            {MAP_WIDTH}x{MAP_DEPTH}x{MAP_HEIGHT} (fixed)")
+        print(f"  Estimated time: ~{total_all * 3} min")
+        print(f"{'=' * 60}")
+
+        confirm = input("\nThis will take a VERY long time. Proceed? (y/n): ").strip().lower()
+        if confirm != "y":
+            print("Aborted.")
+            return
+
+        t_start = time.time()
+
+        for d_label, use_airsim in depth_configs:
+            print(f"\n{'#' * 60}")
+            print(f"  DEPTH SOURCE: {d_label.upper()}")
+            print(f"{'#' * 60}")
+
+            for planner in planners:
+                print(f"\n{'=' * 60}")
+                print(f"  [{d_label}] PLANNER: {planner.upper()}")
+                print(f"{'=' * 60}")
+
+                run_trials(ENV, planner, d_label, use_airsim,
+                           scenarios, voxels, OVERWRITE)
+
+        elapsed = time.time() - t_start
+        hours = int(elapsed // 3600)
+        mins = int((elapsed % 3600) // 60)
+
+        print(f"\n{'=' * 60}")
+        print(f"  FULL EXPERIMENT completed in {hours}h {mins}m")
+        print(f"  Results: {BASE_OUTPUT_DIR}/{ENV}/")
+        print(f"{'=' * 60}")
+
+        # Auto-run analysis
+        run_analysis(ENV)
+
+    elif MODE == "everything":
+        # ══════════════════════════════════════
+        #  RUN EVERYTHING MODE
+        # ══════════════════════════════════════
+        planners = ALL_PLANNERS
+        scenarios = ALL_SCENARIOS
+        voxels = ALL_VOXELS
+        total_all = len(planners) * len(scenarios) * len(voxels) * TRIALS_PER_COMBO
+
+        print(f"\n{'=' * 60}")
+        print(f"  === RUN EVERYTHING MODE ===")
+        print(f"  Environment:    {ENV}")
+        print(f"  Planners:       {planners}")
+        print(f"  Depth source:   {depth_label}")
+        print(f"  Scenarios:      {scenarios}")
+        print(f"  Voxel Sizes:    {voxels}")
+        print(f"  Trials/combo:   {TRIALS_PER_COMBO}")
+        print(f"  Total runs:     {total_all}")
+        print(f"  Overwrite:      {OVERWRITE}")
+        print(f"  Estimated time: ~{total_all * 5} min (assuming ~5 min/trial)")
+        print(f"{'=' * 60}")
+
+        confirm = input("\nThis will take a LONG time. Proceed? (y/n): ").strip().lower()
+        if confirm != "y":
+            print("Aborted.")
+            return
+
+        t_start = time.time()
+
+        for planner in planners:
+            print(f"\n{'#' * 60}")
+            print(f"  PLANNER: {planner.upper()}")
+            print(f"{'#' * 60}")
+
+            run_trials(ENV, planner, depth_label, USE_AIRSIM_DEPTH,
+                       scenarios, voxels, OVERWRITE)
+
+        elapsed = time.time() - t_start
+        hours = int(elapsed // 3600)
+        mins = int((elapsed % 3600) // 60)
+
+        print(f"\n{'=' * 60}")
+        print(f"  All trials completed in {hours}h {mins}m")
+        print(f"  Results: {BASE_OUTPUT_DIR}/{ENV}/")
+        print(f"{'=' * 60}")
+
+        # Auto-run analysis
+        run_analysis(ENV)
+
+    else:
+        # ══════════════════════════════════════
+        #  CUSTOM MODE (original behavior)
+        # ══════════════════════════════════════
+        PLANNER = prompt_choice("\nSelect Planner:", [
+            ("A* (original paper method)", "a_star"),
+            ("Informed-RRT* (extended method)", "rrt_star"),
+        ])
+
+        scenarios = prompt_choice("\nSelect Scenario:", [
+            ("Scenario 1", [1]),
+            ("Scenario 2", [2]),
+            ("Scenario 3", [3]),
+            ("ALL Scenarios (1, 2, 3)", ALL_SCENARIOS),
+        ])
+
+        voxels = prompt_choice("\nSelect Voxel Size:", [
+            ("V = 0.5", [0.5]),
+            ("V = 1.0", [1.0]),
+            ("V = 2.0", [2.0]),
+            ("ALL Voxel Sizes (0.5, 1.0, 2.0)", ALL_VOXELS),
+        ])
+
+        total = len(scenarios) * len(voxels) * TRIALS_PER_COMBO
+
+        print(f"\n{'=' * 60}")
+        print(f"  Environment:    {ENV}")
+        print(f"  Planner:        {PLANNER}")
+        print(f"  Depth source:   {depth_label}")
+        print(f"  Scenarios:      {scenarios}")
+        print(f"  Voxel Sizes:    {voxels}")
+        print(f"  Trials/combo:   {TRIALS_PER_COMBO}")
+        print(f"  Total runs:     {total}")
+        print(f"  Overwrite:      {OVERWRITE}")
+        print(f"{'=' * 60}")
+
+        confirm = input("\nProceed? (y/n): ").strip().lower()
+        if confirm != "y":
+            print("Aborted.")
+            return
+
+        run_trials(ENV, PLANNER, depth_label, USE_AIRSIM_DEPTH,
+                   scenarios, voxels, OVERWRITE)
+
+        print(f"\n{'=' * 60}")
+        print(f"  All {total} trials completed!")
+        print(f"  Results: {BASE_OUTPUT_DIR}/{ENV}/{PLANNER}_{depth_label}/")
+        print(f"{'=' * 60}")
+
+        # Ask to run analysis
+        do_analyze = input("\nRun analysis now? (y/n): ").strip().lower()
+        if do_analyze == "y":
+            run_analysis(ENV)
 
 
 if __name__ == "__main__":

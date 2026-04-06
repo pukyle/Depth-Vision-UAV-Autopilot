@@ -24,7 +24,7 @@ import airsim
 
 from mapper import VoxArray, precompile
 from data_logger import DataLogger
-from hybrid_planner import compute_local_velocity
+from informed_rrt_star import reset_replan_counter
 import nav_config as cfg
 
 import psutil
@@ -39,7 +39,14 @@ class MapperNavNode:
         self.vmap = VoxArray(resolution=cfg.map_resolution, shape=(cfg.map_width,cfg.map_depth,cfg.map_heigth))
         rospy.init_node('mapper_nav', anonymous=True)
 
-        self.depth_estimator_module = DepthAnythingEstimatorModuleV2()
+        # Reset RRT* replan counter for this trial
+        reset_replan_counter()
+
+        self.depth_estimator_module = None
+        if cfg.use_rgb_imaging:
+            self.depth_estimator_module = DepthAnythingEstimatorModuleV2()
+        else:
+            print("[Depth] Using AirSim ground-truth depth images (no DEM loaded)")
         
         self.client = airsim.MultirotorClient(ip="host.docker.internal", port=41451)
         self.client.confirmConnection()
@@ -448,34 +455,7 @@ class MapperNavNode:
             self.client.armDisarm(False)
             exit(0)
                 
-        use_local_planner = (cfg.planner_type == 'rrt_star')
-        moved = False
-
-        if use_local_planner:
-            # Get voxel-space position and velocity for local planner
-            pos_vox = np.array(self.vmap.pos_acc, dtype=float)
-            # Convert world velocity to voxel velocity (divide by resolution)
-            vel_world = np.array(v, dtype=float)
-            vel_vox = vel_world / cfg.map_resolution
-            goal_vox = np.array(self.vmap.goal, dtype=float)
-
-            # Get global path in voxel coordinates
-            path_vox, _ = self.vmap.get_plan(orig_coord=False)
-
-            # Compute local velocity
-            local_vel = compute_local_velocity(
-                self.vmap.vox, pos_vox, vel_vox,
-                path_vox, goal_vox,
-                is_colliding=has_col
-            )
-
-            if local_vel is not None and np.linalg.norm(local_vel) > 0.05:
-                # Convert voxel velocity back to world coordinates
-                world_vel = local_vel * cfg.map_resolution
-                self.ctl.move_by_velocity(world_vel, duration=0.5)
-                moved = True
-
-        if not moved and len(path) > 1:
+        if len(path) > 1:
             self.ctl.move_along_path(path)
 
         t5 = time.time()
@@ -531,20 +511,6 @@ class DroneController:
             yaw_mode=airsim.YawMode(is_rate=False, yaw_or_rate=0),
             lookahead=-1,
             adaptive_lookahead=0)
-
-    def move_by_velocity(self, velocity_enu, duration=0.5):
-        """
-        Move drone using velocity command from APF+DWA local planner.
-        velocity_enu: (vx, vy, vz) in ENU world coordinates
-        Converts to AirSim NED: (vx, -vy, -vz)
-        """
-        vx, vy, vz = velocity_enu
-        self.client.moveByVelocityAsync(
-            vx, -vy, -vz,
-            duration=duration,
-            drivetrain=airsim.DrivetrainType.MaxDegreeOfFreedom,
-            yaw_mode=airsim.YawMode(is_rate=False, yaw_or_rate=0)
-        )
 
     def rotate_360(self):
         self.client.rotateToYawAsync(360, 1).join()
