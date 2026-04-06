@@ -25,7 +25,6 @@ Before deploying to AirSim, we conducted **algorithm-level simulations** compari
   <img src="https://github.com/user-attachments/assets/62193352-5682-4b0c-a840-9b127cc3745e" width="100%" alt="Three RRT* variants with DWA trajectory tracking"/>
 </p>
 <p align="center"><sub>Fig 1. Route comparison — APF-guided Informed-RRT* produces the most concentrated node distribution along feasible corridors.</sub></p>
-
 <table>
   <tr>
     <td align="center">
@@ -56,7 +55,7 @@ Based on these findings, we implemented APF-guided Informed-RRT* within the AirS
 
 ### Key Modifications
 
-- **Informed-RRT* Planner** — A* runs first as baseline; RRT* only optimizes if path is ≥5% shorter. KD-Tree accelerated, 0.5s time budget, 500 iteration cap. First 3 replans use RRT*; subsequent replans fall back to A* for reactive speed.
+- **Informed RRT_star Planner** — A* runs first as baseline; RRT* only optimizes if path is ≥5% shorter. KD-Tree accelerated, 0.5s time budget, 500 iteration cap. First 3 replans use RRT*; subsequent replans fall back to A* for reactive speed.
 - **APF Path Smoothing** — Pushes waypoints away from obstacles via repulsive potential fields. Does not interfere with `moveOnPathAsync`.
 - **Depth Source Toggle** — `--use_airsim_depth` bypasses Depth Anything V2 for controlled ablation studies.
 - **Automated Pipeline** — `run_batch_test.py` and `analyze_metrics.py` for reproducible batch experiments with paper-aligned parameters.
