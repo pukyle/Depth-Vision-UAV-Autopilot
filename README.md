@@ -9,6 +9,10 @@
 
 This project extends the original **Monocular-SLAM-Drone** framework by integrating an **APF-guided Informed-RRT*** path planner with **Artificial Potential Field (APF) path smoothing**, replacing the original A* algorithm. All experiments are conducted in Microsoft AirSim on Unreal Engine.
 
+<video src="https://github.com/user-attachments/assets/13a5ece6-3228-490e-95d9-796d764f719d" width="100%" autoplay loop muted playsinline></video>
+<p align="center">
+  <em><b>Left panel:</b> The AirSim simulation environment displaying the UAV's real-time flight status alongside dual-view camera feeds (depth map and RGB image). <b>Top-right panel:</b> The control ROS Node terminal, handling real-time API communication and logging flight data along with depth matrix information. <b>Bottom-right panel:</b> RViz-based 3D mapping visualization, where red voxels represent spaces with depth uncertainty, and blue voxels indicate known obstacle-occupied spaces.</em>
+</p>
 ---
 
 ### Why Informed-RRT* with APF?
