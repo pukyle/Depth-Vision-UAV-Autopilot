@@ -7,7 +7,7 @@
 
 ## About the Project
 
-This project extends the original **Monocular-SLAM-Drone** framework by integrating an **APF-guided Informed-RRT*** path planner with **Artificial Potential Field (APF) path smoothing**, replacing the original A* algorithm. All experiments are conducted in Microsoft AirSim on Unreal Engine.
+This project extends the original **Monocular-SLAM-Drone** framework by integrating an **APF-guided Informed-RRT*** path planner with **Artificial Potential Field (APF) path smoothing**, replacing the original A* algorithm. All experiments are conducted in Microsoft [AirSim](https://github.com/microsoft/AirSim) on Unreal Engine.
 
 <video src="https://github.com/user-attachments/assets/13a5ece6-3228-490e-95d9-796d764f719d" width="100%" autoplay loop muted playsinline></video>
 <p align="center">
