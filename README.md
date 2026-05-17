@@ -30,24 +30,24 @@ Before deploying to AirSim, we conducted **algorithm-level simulations** compari
 | APF-guided Informed-RRT* | Adds potential field bias to concentrate samples in obstacle-free corridors |
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/62193352-5682-4b0c-a840-9b127cc3745e" width="100%" alt="Three RRT* variants with DWA trajectory tracking"/>
+  <img src="assets/images/RRT_comparison.jpg" width="100%" alt="Three RRT* variants with DWA trajectory tracking"/>
 </p>
 <p align="center"><em>Fig 1. Route comparison — APF-guided Informed-RRT* produces the most concentrated node distribution along feasible corridors.</em></p>
 <table>
   <tr>
     <td align="center">
-      <img src="https://github.com/user-attachments/assets/995d72ad-df47-4744-9a3c-e7bf7a115e86" width="100%" alt="Smoothness comparison"/>
+      <img src="assets/images/mean_turning_angle_comparison.jpg" width="100%" alt="Smoothness comparison"/>
       <br><em>Fig 2. Mean turning angle — DWA reduces oscillation across all variants.</em>
     </td>
     <td align="center">
-      <img src="https://github.com/user-attachments/assets/b5b06011-81b1-483e-b398-905e10ae1828" width="100%" alt="Path length comparison"/>
+      <img src="assets/images/path_length_comparison.jpg" width="100%" alt="Path length comparison"/>
       <br><em>Fig 3. Path length — Informed variants produce shorter paths than basic RRT*.</em>
     </td>
   </tr>
 </table>
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/2967121e-4b0f-4e8c-ae0b-d9cf06c4e683" width="50%" alt="Planning time comparison"/>
+  <img src="assets/images/planning_time_comparison.jpg" width="50%" alt="Planning time comparison"/>
 </p>
 <p align="center"><em>Fig 4. Planning time — Informed-RRT* reduces planning time by limiting the sampling domain.</em></p>
 
