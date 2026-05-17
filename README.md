@@ -17,6 +17,18 @@ https://github.com/user-attachments/assets/13a5ece6-3228-490e-95d9-796d764f719d
     <b>Bottom-right panel:</b> RViz-based 3D mapping visualization, where red voxels represent spaces with depth uncertainty, and blue voxels indicate known obstacle-occupied spaces.</em>
 </p>
 
+## System Architecture
+<p align="center">
+  <img src="assets/images/System_diagram.png" width="100%" alt="System Architecture Diagram"/>
+</p>
+<p align="center"><em>System architecture diagram showing the relationship and data flow between visual sensing, path planning, and vehicle control modules.</em></p>
+
+The system is organized into several key components:
+* **Visual Sensing:** Handles the processing of camera inputs for mapping and obstacle detection.
+* **Global Path Planning:** Implements the APF-guided Informed-RRT* algorithm to find an optimal collision-free route.
+* **Local Control:** Uses the Dynamic Window Approach (DWA) for smooth, safe, and efficient trajectory tracking.
+* **AirSim Interface:** Manages communication with the AirSim simulation environment to receive sensor data and send control commands.
+
 ---
 
 ### Why Informed-RRT* with APF?
