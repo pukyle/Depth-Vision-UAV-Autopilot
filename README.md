@@ -63,7 +63,7 @@ Based on these findings, we implemented APF-guided Informed-RRT* within the AirS
 
 ### Key Modifications
 
-- **Informed RRT_star Planner** — A* runs first as baseline; RRT* only optimizes if path is ≥5% shorter. KD-Tree accelerated, 0.5s time budget, 500 iteration cap. First 3 replans use RRT*; subsequent replans fall back to A* for reactive speed.
+- **Hybrid Planner** — A* runs first as baseline; RRT* only optimizes if path is ≥5% shorter. KD-Tree accelerated, 0.5s time budget, 500 iteration cap. First 3 replans use RRT*; subsequent replans fall back to A* for reactive speed.
 - **APF Path Smoothing** — Pushes waypoints away from obstacles via repulsive potential fields. Does not interfere with `moveOnPathAsync`.
 - **Depth Source Toggle** — `--use_airsim_depth` bypasses Depth Anything V2 for controlled ablation studies.
 - **Automated Pipeline** — `run_batch_test.py` and `analyze_metrics.py` for reproducible batch experiments with paper-aligned parameters.
